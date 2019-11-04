@@ -1,0 +1,10 @@
+digraph hw3_p5_fsm {
+  IDLE -> POSE [label="nav_pose"];
+  POSE -> POSE [label="far goal,stop"];
+  POSE -> STOP [label="near stop"];
+  STOP -> STOP [label = "< 3s"];
+  STOP -> CROSS [label = "@ 3s"];
+  CROSS -> CROSS [label = "near stop"];
+  CROSS -> POSE [label="far stop"];
+  POSE -> IDLE [label="near goal"];
+}
