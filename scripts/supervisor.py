@@ -73,6 +73,7 @@ class Supervisor:
         # Current mode
         self.mode = Mode.IDLE
         self.prev_mode = None  # For printing purposes
+        self.dist_to_stop = float('inf')
 
         ########## PUBLISHERS ##########
 
@@ -163,13 +164,14 @@ class Supervisor:
         self.publish_current_pose_to_controller()
 
         # transit to POSE mode if goal was received
-        if !self.is_close_to(self.x_g, self.y_g, self.theta_g):
-            self.mode = self.POSE
+        if not self.is_close_to(self.x_g, self.y_g, self.theta_g):
+            self.mode = Mode.POSE
 
     def pose_action(self):
         """ sends the current desired pose to the pose controller """
         assert self.mode == Mode.POSE
         if self.is_close_to_goal():
+            rospy.loginfo("POSE: Close to goal, switching to IDLE")
             # stop the robot ...
             self.publish_current_pose_to_controller()
             # ... and keep it so
@@ -179,28 +181,31 @@ class Supervisor:
             self.mode = Mode.IDLE
 
         elif self.is_close_to_stop_sign():
+            rospy.loginfo("POSE: close to stop sign, stopping and swithching to STOP")
             self.stop_sign_start = rospy.get_rostime()
             self.publish_current_pose_to_controller() # stop the robot
-            self.mode = Mode.STOP
+            self.mode = Mode.STOP_SIGN
 
         else:
             self.publish_goal_to_controller()
             # and maintain Mode.POSE state
 
     def stop_sign_action(self):
-        assert self.mode == Mode.STOP
+        assert self.mode == Mode.STOP_SIGN
         if rospy.get_rostime() - self.stop_sign_start > rospy.Duration.from_sec(self.params.stop_time):
+            rospy.loginfo("STOP_SIGN: wait finished, switching to CROSS")
             self.publish_goal_to_controller() # get moving ...
             self.mode = Mode.CROSS # ... and ignore stop sign
         else:
             self.publish_current_pose_to_controller() # stay stopped
-            # maintain self.mode = Mode.STOP
+            # maintain self.mode = Mode.STOP_SIGN
 
     def cross_action(self):
         assert self.mode == Mode.CROSS
         assert self.is_close_to_stop_sign()
         self.publish_goal_to_controller() # move unconditionally
         if not self.is_close_to_stop_sign():
+            rospy.loginfo('CROSS: past stop sign, switching to POSE')
             # subsequently begin caring about stop sign
             self.mode = Mode.POSE
         #else continue ignoring stop sign in Mode.CROSS
@@ -233,7 +238,7 @@ class Supervisor:
                abs(theta - self.theta) < self.params.theta_eps
 
     def is_close_to_goal(self):
-       return self.close_to(self.x_g, self.y_g, self.theta_g)
+       return self.is_close_to(self.x_g, self.y_g, self.theta_g)
 
     def is_close_to_stop_sign(self):
         return self.dist_to_stop > 0 and self.dist_to_stop < self.params.stop_min_dist
