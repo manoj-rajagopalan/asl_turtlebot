@@ -102,6 +102,7 @@ class Supervisor:
         else:
             self.x_g, self.y_g, self.theta_g = 1.5, -4., 0.
             # Event loop will begin moving vehicle
+            rospy.loginfo('Spontaneous goal (%f, %f, %f)', self.x_g, self.y_g, self.theta_g)
 
 
     ########## SUBSCRIBER CALLBACKS ##########
@@ -187,6 +188,7 @@ class Supervisor:
             self.mode = Mode.STOP_SIGN
 
         else:
+            rospy.loginfo('POSE: maintaining state')
             self.publish_goal_to_controller()
             # and maintain Mode.POSE state
 
