@@ -166,6 +166,7 @@ class Supervisor:
 
         # transit to POSE mode if goal was received
         if not self.is_close_to(self.x_g, self.y_g, self.theta_g):
+            rospy.loginfo('IDLE: got new goal, switching to POSE')
             self.mode = Mode.POSE
 
     def pose_action(self):
@@ -217,10 +218,11 @@ class Supervisor:
     def publish_goal_to_controller(self):
         """ Publishes true goal to controller in order to cause movement towards it"""
         goal_pose = Pose2D()
-        goal_pose.x = self.x
-        goal_pose.y = self.y
-        goal_pose.theta = self.theta
+        goal_pose.x = self.x_g
+        goal_pose.y = self.y_g
+        goal_pose.theta = self.theta_g
         self.pose_goal_publisher.publish(goal_pose)
+        rospy.loginfo('Published goal %s', str(goal_pose))
 
     def publish_current_pose_to_controller(self):
         """ Publishes current pose as goal to controller in order to stop the vehicle"""
@@ -229,6 +231,7 @@ class Supervisor:
         current_pose.y = self.y
         current_pose.theta = self.theta
         self.pose_goal_publisher.publish(current_pose)
+        rospy.loginfo('Published current pose %s', str(current_pose))
 
     ########## USEFUL PREDICATES ##########
 
