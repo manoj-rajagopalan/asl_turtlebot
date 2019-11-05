@@ -221,6 +221,7 @@ class Supervisor:
         goal_pose.y = self.y
         goal_pose.theta = self.theta
         self.pose_goal_publisher.publish(goal_pose)
+        loginfo('Published goal %s', string(goal_pose))
 
     def publish_current_pose_to_controller(self):
         """ Publishes current pose as goal to controller in order to stop the vehicle"""
@@ -229,6 +230,7 @@ class Supervisor:
         current_pose.y = self.y
         current_pose.theta = self.theta
         self.pose_goal_publisher.publish(current_pose)
+        loginfo('Published current pose %s', string(current_pose))
 
     ########## USEFUL PREDICATES ##########
 
