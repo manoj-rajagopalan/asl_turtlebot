@@ -74,6 +74,9 @@ class Supervisor:
         # Current mode
         self.mode = Mode.IDLE
         self.prev_mode = None  # For printing purposes
+        
+        # Landmarks
+        self.landmarks = {}
 
         ########## PUBLISHERS ##########
 
@@ -102,7 +105,12 @@ class Supervisor:
         else:
             self.x_g, self.y_g, self.theta_g = 1.5, -4., 0.
             self.mode = Mode.NAV
+
+        # Food detectors
+        rospy.Subscriber('/detector/bird', DetectedObject, self.bird_detected_callback)
         
+        # Order requester
+        rospy.Subscriber('/delivery_request', String, self.order_callback)
 
     ########## SUBSCRIBER CALLBACKS ##########
 
@@ -154,6 +162,17 @@ class Supervisor:
         if dist > 0 and dist < self.params.stop_min_dist and self.mode == Mode.NAV:
             self.init_stop_sign()
 
+    def bird_detected_callback(self, msg):
+        dist = msg.distance
+
+        if dist > 0 and dist < self.params.stop_min_dist and self.mode == Mode.NAV:
+            self.landmarks['bird'] = Pose2D(self.x, self.y, self.theta)
+
+    def order_callback(self, msg):
+        for order in msg.split(","):
+            self.pose_goal_publisher.publish(self.landmarks[order])
+            while not self.mode == Mode.IDLE:
+                pass
 
     ########## STATE MACHINE ACTIONS ##########
 
