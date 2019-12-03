@@ -4,7 +4,7 @@ from enum import Enum
 
 import rospy
 from asl_turtlebot.msg import DetectedObject
-from gazebo_msgs.msg import ModelStates
+# from gazebo_msgs.msg import ModelStates
 from geometry_msgs.msg import Twist, PoseArray, Pose2D, PoseStamped
 from std_msgs.msg import Float32MultiArray, String
 import tf
@@ -24,13 +24,13 @@ class SupervisorParams:
     def __init__(self, verbose=False):
         # If sim is True (i.e. using gazebo), we want to subscribe to
         # /gazebo/model_states. Otherwise, we will use a TF lookup.
-        self.use_gazebo = rospy.get_param("sim")
+        self.use_gazebo = False # rospy.get_param("sim")
 
         # How is nav_cmd being decided -- human manually setting it, or rviz
-        self.rviz = rospy.get_param("rviz")
+        self.rviz = True # rospy.get_param("rviz")
 
         # If using gmapping, we will have a map frame. Otherwise, it will be odom frame.
-        self.mapping = rospy.get_param("map")
+        self.mapping = True # rospy.get_param("map")
 
         # Threshold at which we consider the robot at a location
         self.pos_eps = rospy.get_param("~pos_eps", 0.1)
@@ -40,7 +40,7 @@ class SupervisorParams:
         self.stop_time = rospy.get_param("~stop_time", 3.)
 
         # Minimum distance from a stop sign to obey it
-        self.stop_min_dist = rospy.get_param("~stop_min_dist", 0.5)
+        self.stop_min_dist = rospy.get_param("~stop_min_dist", 0.75)
 
         # Time taken to cross an intersection
         self.crossing_time = rospy.get_param("~crossing_time", 3.)
@@ -85,6 +85,9 @@ class Supervisor:
 
         # Command vel (used for idling)
         self.cmd_vel_publisher = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+
+        # Command nav
+        self.cmd_nav_publisher = rospy.Publisher('/cmd_nav', Pose2D, queue_size=10)
 
         ########## SUBSCRIBERS ##########
 
@@ -165,14 +168,22 @@ class Supervisor:
     def bird_detected_callback(self, msg):
         dist = msg.distance
 
-        if dist > 0 and dist < self.params.stop_min_dist and self.mode == Mode.NAV:
-            self.landmarks['bird'] = Pose2D(self.x, self.y, self.theta)
+        if dist > 0 and dist < self.params.stop_min_dist:
+            pose = Pose2D()
+            pose.x = self.x
+            pose.y = self.y
+            pose.theta = self.theta
+
+            self.landmarks['bird'] = pose
+            print "Bird Detected", self.landmarks['bird']
 
     def order_callback(self, msg):
-        for order in msg.split(","):
-            self.pose_goal_publisher.publish(self.landmarks[order])
-            while not self.mode == Mode.IDLE:
-                pass
+        for order in msg.data.split(","):
+            print "Order Received", order
+            if order in self.landmarks.keys():
+                self.cmd_nav_publisher.publish(self.landmarks[order])
+                while not self.mode == Mode.IDLE:
+                    pass
 
     ########## STATE MACHINE ACTIONS ##########
 
@@ -249,7 +260,7 @@ class Supervisor:
 
         if not self.params.use_gazebo:
             try:
-                origin_frame = "/map" if mapping else "/odom"
+                origin_frame = "/map" # if mapping else "/odom"
                 translation, rotation = self.trans_listener.lookupTransform(origin_frame, '/base_footprint', rospy.Time(0))
                 self.x, self.y = translation[0], translation[1]
                 self.theta = tf.transformations.euler_from_quaternion(rotation)[2]
