@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 
 import rospy
+from visualization_msgs.msg import Marker
 from nav_msgs.msg import OccupancyGrid, MapMetaData, Path
 from geometry_msgs.msg import Twist, Pose2D, PoseStamped
+from asl_turtlebot.msg import DetectedObject
 from std_msgs.msg import String
 import tf
 import numpy as np
@@ -59,6 +61,10 @@ class Navigator:
         self.plan_resolution =  0.1
         self.plan_horizon = 15
 
+	# Detector params
+	self.min_dist=5
+	self.confidence=0.9
+
         # time when we started following the plan
         self.current_plan_start_time = rospy.get_rostime()
         self.current_plan_duration = 0
@@ -107,6 +113,13 @@ class Navigator:
         rospy.Subscriber('/map_metadata', MapMetaData, self.map_md_callback)
         rospy.Subscriber('/cmd_nav', Pose2D, self.cmd_nav_callback)
 
+	# Pizza detector
+        rospy.Subscriber('/detector/bird', DetectedObject, self.pizza_detected_callback)
+	rospy.loginfo("bird detected")
+
+	# Cake detector
+        #rospy.Subscriber('/detector/cake', DetectedObject, self.cake_detected_callback)
+
         print "finished init"
         
     def dyn_cfg_callback(self, config, level):
@@ -153,6 +166,21 @@ class Navigator:
                 # if we have a goal to plan to, replan
                 rospy.loginfo("replanning because of new map")
                 self.replan() # new map, need to replan
+
+    def pizza_detected_callback(self, msg):
+        """ callback for when the detector has found a stop sign. Note that
+        a distance of 0 can mean that the lidar did not pickup the stop sign at all """
+
+        # distance of the stop sign
+        dist = msg.distance
+	conf = msg.confidence
+	
+
+        # if close enough and in nav mode, stop
+        if conf > self.confidence and dist>0 and dist< self.min_dist:
+           pizza_localization=[self.x,self.y,self.theta]
+	   print(pizza_localization)
+	   rospy.loginfo("Callback function")
 
     def shutdown_callback(self):
         """
