@@ -344,11 +344,11 @@ class Navigator:
         x_init = self.snap_to_grid((self.x, self.y))
         self.plan_start = x_init
         x_goal = self.snap_to_grid((self.x_g, self.y_g))
-        problem = AStar(state_min,state_max,self.occupancy,self.plan_resolution)
-        #- problem = BFS(state_min,state_max,self.occupancy,self.plan_resolution)
+        #problem = AStar(state_min,state_max,self.occupancy,self.plan_resolution)
+        problem = BFS(state_min,state_max,x_init, x_goal, self.occupancy,self.plan_resolution)
 
         rospy.loginfo("Navigator: computing navigation plan")
-        success =  problem.solve(x_init, x_goal)
+        success =  problem.solve()
         if not success:
             rospy.loginfo("Planning failed")
             return

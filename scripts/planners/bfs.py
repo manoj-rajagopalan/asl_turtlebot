@@ -6,13 +6,12 @@ from utils import plot_line_segments
 class BFS(object):
     """Represents a motion planning problem to be solved using A*"""
 
-    def __init__(self, statespace_lo, statespace_hi, occupancy, resolution=1):
+    def __init__(self, statespace_lo, statespace_hi, x_init, x_goal, occupancy, resolution=1):
         self.statespace_lo = statespace_lo         # state space lower bound (e.g., (-5, -5))
         self.statespace_hi = statespace_hi         # state space upper bound (e.g., (5, 5))
         self.occupancy = occupancy                 # occupancy grid
         self.resolution = resolution               # resolution of the discretization of state space (cell/m)
 
-    def solve(x_init, x_goal):
         self.x_init = self.snap_to_grid(x_init)    # initial state
         self.x_goal = self.snap_to_grid(x_goal)    # goal state
 
@@ -23,13 +22,13 @@ class BFS(object):
         self.cost_to_arrive = {}    # dictionary of the cost-to-arrive at state from start (often called g score)
         self.came_from = {}         # dictionary keeping track of each state's parent to reconstruct the path
 
-        self.open_set.add(x_init)
+        self.open_set.append(x_init)
         self.cost_to_arrive[x_init] = 0
         self.est_cost_through[x_init] = self.distance(x_init,x_goal)
 
         self.path = None        # the final path as a list of states
 
-        return self.do_bfs()
+        #- return self.do_bfs()
 
     def is_free(self, x):
         """
@@ -150,7 +149,10 @@ class BFS(object):
         py = [x[1] for x in self.open_set | self.closed_set if x != self.x_init and x != self.x_goal]
         plt.scatter(px, py, color="blue", s=point_size, zorder=10, alpha=0.2)
 
-    def do_bfs(self):
+    def speed_at(self, xy):
+        return self.occupancy.speeds[xy[1], xy[0]]
+
+    def solve(self):
         """
         Solves the planning problem using the BFS algorithm. It places
         the solution as a list of tuples (each representing a state) that go
@@ -172,7 +174,7 @@ class BFS(object):
             if x_cur == self.x_goal:
                 success = True
                 continue
-            self.open_set.remove(x_cur)
+            #- self.open_set.remove(x_cur)
             self.closed_set.add(x_cur)
             neighbors = self.get_neighbors(x_cur)
             for x_neigh in neighbors:
