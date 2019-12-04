@@ -150,7 +150,10 @@ class BFS(object):
         plt.scatter(px, py, color="blue", s=point_size, zorder=10, alpha=0.2)
 
     def speed_at(self, xy):
-        return self.occupancy.speeds[xy[1], xy[0]]
+	# width=self.statespace_hi[0]-self.statespace_lo[0]
+	print xy.__class__
+	print xy
+        return self.occupancy.speeds[int(xy[1]), int(xy[0])]
 
     def solve(self):
         """
