@@ -40,7 +40,7 @@ class SupervisorParams:
         self.stop_time = rospy.get_param("~stop_time", 3.)
 
         # Minimum distance from a stop sign to obey it
-        self.stop_min_dist = rospy.get_param("~stop_min_dist", 0.75)
+        self.stop_min_dist = rospy.get_param("~stop_min_dist", 0.5)
 
         # Time taken to cross an intersection
         self.crossing_time = rospy.get_param("~crossing_time", 3.)
@@ -110,7 +110,7 @@ class Supervisor:
             self.mode = Mode.NAV
 
         # Food detectors
-        rospy.Subscriber('/detector/bird', DetectedObject, self.bird_detected_callback)
+        rospy.Subscriber('/detector/objects', DetectedObjectList, self.object_detected_callback)
         
         # Order requester
         rospy.Subscriber('/delivery_request', String, self.order_callback)
@@ -165,17 +165,19 @@ class Supervisor:
         if dist > 0 and dist < self.params.stop_min_dist and self.mode == Mode.NAV:
             self.init_stop_sign()
 
-    def bird_detected_callback(self, msg):
-        dist = msg.distance
+    def object_detected_callback(self, msg):
+		for i, object in enumerate(msg.objects):
+			dist = msg.ob_msgs[i].distance
 
-        if dist > 0 and dist < self.params.stop_min_dist:
-            pose = Pose2D()
-            pose.x = self.x
-            pose.y = self.y
-            pose.theta = self.theta
+			if dist > 0 and dist < self.params.stop_min_dist:
+				pose = Pose2D()
+				pose.x = self.x
+				pose.y = self.y
+				pose.theta = self.theta
 
-            self.landmarks['bird'] = pose
-            print "Bird Detected", self.landmarks['bird']
+				if not object in self.landmarks.keys():
+					self.landmarks[object] = pose
+					print "Object Detected", object, self.landmarks[object]
 
     def order_callback(self, msg):
         for order in msg.data.split(","):
