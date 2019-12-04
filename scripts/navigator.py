@@ -4,7 +4,7 @@ import rospy
 from visualization_msgs.msg import Marker
 from nav_msgs.msg import OccupancyGrid, MapMetaData, Path
 from geometry_msgs.msg import Twist, Pose2D, PoseStamped
-from asl_turtlebot.msg import DetectedObject
+from asl_turtlebot.msg import DetectedObject,DetectedObjectList
 from std_msgs.msg import String
 import tf
 import numpy as np
@@ -62,6 +62,7 @@ class Navigator:
         self.plan_horizon = 15
 
 	# Detector params
+	self.landmarks={}
 	self.min_dist=5
 	self.confidence=0.9
 
@@ -113,12 +114,12 @@ class Navigator:
         rospy.Subscriber('/map_metadata', MapMetaData, self.map_md_callback)
         rospy.Subscriber('/cmd_nav', Pose2D, self.cmd_nav_callback)
 
-	# Pizza detector
-        rospy.Subscriber('/detector/bird', DetectedObject, self.pizza_detected_callback)
-	rospy.loginfo("bird detected")
+	# Objects detector
+        rospy.loginfo('before')
+        rospy.Subscriber('/detector/objects', DetectedObjectList, self.object_detected_callback)
 
-	# Cake detector
-        #rospy.Subscriber('/detector/cake', DetectedObject, self.cake_detected_callback)
+	# Landmarks
+	self.vis_pub = rospy.Publisher('marker_topic', Marker, queue_size=10)
 
         print "finished init"
         
@@ -167,20 +168,66 @@ class Navigator:
                 rospy.loginfo("replanning because of new map")
                 self.replan() # new map, need to replan
 
-    def pizza_detected_callback(self, msg):
+    def object_detected_callback(self, msg):
         """ callback for when the detector has found a stop sign. Note that
         a distance of 0 can mean that the lidar did not pickup the stop sign at all """
 
         # distance of the stop sign
-        dist = msg.distance
-	conf = msg.confidence
-	
+	rospy.loginfo('Callback function')
+	objects=msg.objects
 
-        # if close enough and in nav mode, stop
-        if conf > self.confidence and dist>0 and dist< self.min_dist:
-           pizza_localization=[self.x,self.y,self.theta]
-	   print(pizza_localization)
-	   rospy.loginfo("Callback function")
+	for i in range (len(objects)):
+		if objects[i]=='stop_sign':
+			dist = msg.ob_msgs[i].distance
+			conf = msg.ob_msgs[i].confidence
+
+			# if close enough and in nav mode, stop
+			if conf > self.confidence and dist>0 and dist< self.min_dist:
+
+			   localization=[self.x,self.y,self.theta]
+			   if objects[i] not in self.landmarks:
+				self.landmarks[objects[i]]=localization
+				self.publisher(objects[i],localization)
+			   print(self.landmarks)
+
+			   rospy.loginfo("Bird detection")
+			   
+
+    def publisher(self,name,localization):
+	    
+
+	marker = Marker()
+
+	marker.header.frame_id = "map"
+	marker.header.stamp = rospy.Time()
+
+	# IMPORTANT: If you're creating multiple markers, 
+	#            each need to have a separate marker ID.
+	marker.id = 0
+
+	marker.type = 2 # sphere
+
+	marker.pose.position.x = localization[0]
+	marker.pose.position.y = localization[1]
+	marker.pose.position.z = 0.5
+
+	marker.pose.orientation.x = 0.0
+	marker.pose.orientation.y = 0.0
+	marker.pose.orientation.z = 0.0
+	marker.pose.orientation.w = 1.0
+
+	marker.scale.x = 0.5
+	marker.scale.y = 0.5
+	marker.scale.z = 0.5
+
+	marker.color.a = 1.0 # Don't forget to set the alpha!
+	marker.color.r = 1.0
+	marker.color.g = 0.0
+	marker.color.b = 0.0
+		
+	self.vis_pub.publish(marker)
+	print('Published marker!')
+
 
     def shutdown_callback(self):
         """
