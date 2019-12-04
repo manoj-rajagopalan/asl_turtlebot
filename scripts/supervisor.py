@@ -196,6 +196,7 @@ class Supervisor:
             print "Order Received", order
             if order in self.landmarks.keys():
                 position = self.landmarks[order]
+                self.nav_pose_callback(position)
                 self.cmd_nav_publisher.publish(position)
                 while not self.close_to(position.x, position.y, position.theta):
                     pass
