@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from utils import plot_line_segments
 
-class AStar(object):
+class BFS(object):
     """Represents a motion planning problem to be solved using A*"""
 
     def __init__(self, statespace_lo, statespace_hi, occupancy, resolution=1):
@@ -11,12 +11,13 @@ class AStar(object):
         self.statespace_hi = statespace_hi         # state space upper bound (e.g., (5, 5))
         self.occupancy = occupancy                 # occupancy grid
         self.resolution = resolution               # resolution of the discretization of state space (cell/m)
+
+    def solve(x_init, x_goal):
         self.x_init = self.snap_to_grid(x_init)    # initial state
         self.x_goal = self.snap_to_grid(x_goal)    # goal state
 
-    def solve(x_init, x_goal):
         self.closed_set = set()    # the set containing the states that have been visited
-        self.open_set = set()      # the set containing the states that are condidate for future expension
+        self.open_set = []      # the set containing the states that are condidate for future expension
 
         self.est_cost_through = {}  # dictionary of the estimated cost from start to goal passing through state (often called f score)
         self.cost_to_arrive = {}    # dictionary of the cost-to-arrive at state from start (often called g score)
@@ -28,7 +29,7 @@ class AStar(object):
 
         self.path = None        # the final path as a list of states
 
-        return self.do_astar()
+        return self.do_bfs()
 
     def is_free(self, x):
         """
@@ -102,7 +103,7 @@ class AStar(object):
                 if self.is_free(neighbor_snapped):
                     neighbors.append(neighbor_snapped)
 
-        ########## Code ends here ##########
+        ########## CoAStarde ends here ##########
         return neighbors
 
     def find_best_est_cost_through(self):
@@ -149,9 +150,9 @@ class AStar(object):
         py = [x[1] for x in self.open_set | self.closed_set if x != self.x_init and x != self.x_goal]
         plt.scatter(px, py, color="blue", s=point_size, zorder=10, alpha=0.2)
 
-    def do_astar(self):
+    def do_bfs(self):
         """
-        Solves the planning problem using the A* search algorithm. It places
+        Solves the planning problem using the BFS algorithm. It places
         the solution as a list of tuples (each representing a state) that go
         from self.x_init to self.x_goal inside the variable self.path
         Input:
@@ -167,21 +168,23 @@ class AStar(object):
         ########## Code starts here ##########
         success = False
         while len(self.open_set) > 0:
-            x_cur = self.find_best_est_cost_through()
+            x_cur = self.open_set.pop(0)
             if x_cur == self.x_goal:
                 success = True
-                break
+                continue
             self.open_set.remove(x_cur)
             self.closed_set.add(x_cur)
             neighbors = self.get_neighbors(x_cur)
             for x_neigh in neighbors:
                 if x_neigh in self.closed_set:
                     continue # already evaluated all paths through it
+                effective_speed = 0.5 * (self.speed_at(x_cur) + self.speed_at(x_neigh))
                 cost_to_arrive_at_neighbor = \
-                    self.cost_to_arrive[x_cur] + self.distance(x_cur, x_neigh)
+                    self.cost_to_arrive[x_cur] + \
+                    (self.distance(x_cur, x_neigh) / effective_speed)
                 if x_neigh not in self.open_set:
-                        # self.cost_to_arrive[x_neigh] = infinity
-                        self.open_set.add(x_neigh)
+                    # self.cost_to_arrive[x_neigh] = infinity
+                    self.open_set.append(x_neigh)
                 elif cost_to_arrive_at_neighbor > self.cost_to_arrive[x_neigh]:
                     continue # neighbor encountered previously with lower arrival cost
                 self.cost_to_arrive[x_neigh] = cost_to_arrive_at_neighbor

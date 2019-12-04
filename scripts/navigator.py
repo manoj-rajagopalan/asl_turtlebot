@@ -10,7 +10,7 @@ import tf
 import numpy as np
 from numpy import linalg
 from utils import wrapToPi
-from planners import AStar, compute_smoothed_traj
+from planners import AStar, BFS, compute_smoothed_traj
 from grids import StochOccupancyGrid2D
 import scipy.interpolate
 import matplotlib.pyplot as plt
@@ -70,7 +70,7 @@ class Navigator:
         self.current_plan_start_time = rospy.get_rostime()
         self.current_plan_duration = 0
         self.plan_start = [0.,0.]
-        
+
         # Robot limits
         self.v_max = 0.2    # maximum velocity
         self.om_max = 0.4   # maximum angular velocity
@@ -122,7 +122,7 @@ class Navigator:
 	self.vis_pub = rospy.Publisher('marker_topic', Marker, queue_size=10)
 
         print "finished init"
-        
+
     def dyn_cfg_callback(self, config, level):
         rospy.loginfo("Reconfigure Request: k1:{k1}, k2:{k2}, k3:{k3}".format(**config))
         self.pose_controller.k1 = config["k1"]
@@ -191,17 +191,17 @@ class Navigator:
 			   print(self.landmarks)
 
 			   rospy.loginfo("Bird detection")
-			   
+
 
     def publisher(self,name,localization):
-	    
+
 
 	marker = Marker()
 
 	marker.header.frame_id = "map"
 	marker.header.stamp = rospy.Time()
 
-	# IMPORTANT: If you're creating multiple markers, 
+	# IMPORTANT: If you're creating multiple markers,
 	#            each need to have a separate marker ID.
 	marker.id = 0
 
@@ -224,7 +224,7 @@ class Navigator:
 	marker.color.r = 1.0
 	marker.color.g = 0.0
 	marker.color.b = 0.0
-		
+
 	self.vis_pub.publish(marker)
 	print('Published marker!')
 
@@ -258,7 +258,7 @@ class Navigator:
         (enough to switch to tracking controller)
         """
         return (abs(wrapToPi(self.theta - self.th_init)) < self.theta_start_thresh)
-        
+
     def close_to_plan_start(self):
         return (abs(self.x - self.plan_start[0]) < self.start_pos_thresh and abs(self.y - self.plan_start[1]) < self.start_pos_thresh)
 
@@ -344,17 +344,18 @@ class Navigator:
         x_init = self.snap_to_grid((self.x, self.y))
         self.plan_start = x_init
         x_goal = self.snap_to_grid((self.x_g, self.y_g))
-        problem = AStar(state_min,state_max,x_init,x_goal,self.occupancy,self.plan_resolution)
+        problem = AStar(state_min,state_max,self.occupancy,self.plan_resolution)
+        #- problem = BFS(state_min,state_max,self.occupancy,self.plan_resolution)
 
         rospy.loginfo("Navigator: computing navigation plan")
-        success =  problem.solve()
+        success =  problem.solve(x_init, x_goal)
         if not success:
             rospy.loginfo("Planning failed")
             return
         rospy.loginfo("Planning Succeeded")
 
         planned_path = problem.path
-        
+
 
         # Check whether path is too short
         if len(planned_path) < 4:
@@ -446,7 +447,7 @@ class Navigator:
             self.publish_control()
             rate.sleep()
 
-if __name__ == '__main__':    
+if __name__ == '__main__':
     nav = Navigator()
     rospy.on_shutdown(nav.shutdown_callback)
     nav.run()
