@@ -3,7 +3,8 @@
 from enum import Enum
 
 import rospy
-from asl_turtlebot.msg import DetectedObject
+from visualization_msgs.msg import Marker
+from asl_turtlebot.msg import DetectedObject, DetectedObjectList
 # from gazebo_msgs.msg import ModelStates
 from geometry_msgs.msg import Twist, PoseArray, Pose2D, PoseStamped
 from std_msgs.msg import Float32MultiArray, String
@@ -40,7 +41,10 @@ class SupervisorParams:
         self.stop_time = rospy.get_param("~stop_time", 3.)
 
         # Minimum distance from a stop sign to obey it
-        self.stop_min_dist = rospy.get_param("~stop_min_dist", 0.5)
+        self.stop_min_dist = rospy.get_param("~stop_min_dist", 2.0)
+
+        # Minimum confidence for object detection
+        self.min_confidence = 0.9
 
         # Time taken to cross an intersection
         self.crossing_time = rospy.get_param("~crossing_time", 3.)
@@ -89,6 +93,9 @@ class Supervisor:
         # Command nav
         self.cmd_nav_publisher = rospy.Publisher('/cmd_nav', Pose2D, queue_size=10)
 
+        # Landmark markers
+        self.markers_publisher = rospy.Publisher('/markers', Marker, queue_size=10)
+
         ########## SUBSCRIBERS ##########
 
         # Stop sign detector
@@ -114,6 +121,9 @@ class Supervisor:
         
         # Order requester
         rospy.Subscriber('/delivery_request', String, self.order_callback)
+
+        # Control
+        rospy.Subscriber('/man_control', String, self.man_control_callback)
 
     ########## SUBSCRIBER CALLBACKS ##########
 
@@ -166,26 +176,66 @@ class Supervisor:
             self.init_stop_sign()
 
     def object_detected_callback(self, msg):
-		for i, object in enumerate(msg.objects):
-			dist = msg.ob_msgs[i].distance
+        for i, obj in enumerate(msg.objects):
+            dist = msg.ob_msgs[i].distance
+            conf = msg.ob_msgs[i].confidence
 
-			if dist > 0 and dist < self.params.stop_min_dist:
-				pose = Pose2D()
-				pose.x = self.x
-				pose.y = self.y
-				pose.theta = self.theta
+            if dist > 0 and dist < self.params.stop_min_dist and conf > self.params.min_confidence:
+                pose = Pose2D()
+                pose.x = self.x
+                pose.y = self.y
+                pose.theta = self.theta
 
-				if not object in self.landmarks.keys():
-					self.landmarks[object] = pose
-					print "Object Detected", object, self.landmarks[object]
+                if not obj in self.landmarks.keys():
+                    self.landmarks[obj] = pose
+                    self.marker_publisher(obj, pose)
+                    print "Object Detected", obj, self.landmarks[obj]
 
     def order_callback(self, msg):
         for order in msg.data.split(","):
             print "Order Received", order
             if order in self.landmarks.keys():
-                self.cmd_nav_publisher.publish(self.landmarks[order])
-                while not self.mode == Mode.IDLE:
+                position = self.landmarks[order]
+                self.cmd_nav_publisher.publish(position)
+                while not self.close_to(position.x, position.y, position.theta):
                     pass
+            print "Order Pickup", order
+
+    def marker_publisher(self, name, pose):
+        marker = Marker()
+
+        marker.header.frame_id = "map"
+        marker.header.stamp = rospy.Time()
+
+        marker.id = len(self.landmarks.keys())
+        marker.type = 2 # sphere
+
+        marker.pose.position.x = pose.x
+        marker.pose.position.y = pose.y
+        marker.pose.position.z = 0.5
+
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+
+        marker.scale.x = 0.5
+        marker.scale.y = 0.5
+        marker.scale.z = 0.5
+
+        marker.color.a = 1.0 # Don't forget to set the alpha!
+        marker.color.r = 1.0
+        marker.color.g = 0.0
+        marker.color.b = 0.0
+
+        self.markers_publisher.publish(marker)
+        print('Published marker!')
+
+    def man_control_callback(self, msg):
+        if msg.data == "Manual":
+            self.mode = Mode.MANUAL
+        elif msg.data == "Auto":
+            self.mode = Mode.IDLE
 
     ########## STATE MACHINE ACTIONS ##########
 
@@ -290,22 +340,25 @@ class Supervisor:
                 self.go_to_pose()
 
         elif self.mode == Mode.STOP:
-			if self.has_stopped():
-				self.init_crossing()
-			else:
-				self.stay_idle()
+            if self.has_stopped():
+                self.init_crossing()
+            else:
+                self.stay_idle()
 
         elif self.mode == Mode.CROSS:
-			if self.has_crossed():
-				self.mode = Mode.POSE
-			else:
-				self.nav_to_pose()
+            if self.has_crossed():
+                self.mode = Mode.POSE
+            else:
+                self.nav_to_pose()
 
         elif self.mode == Mode.NAV:
             if self.close_to(self.x_g, self.y_g, self.theta_g):
                 self.mode = Mode.IDLE
             else:
                 self.nav_to_pose()
+
+        elif self.mode == Mode.MANUAL:
+            pass
 
         else:
             raise Exception("This mode is not supported: {}".format(str(self.mode)))

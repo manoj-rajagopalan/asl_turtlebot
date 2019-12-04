@@ -26,6 +26,7 @@ class Mode(Enum):
     ALIGN = 1
     TRACK = 2
     PARK = 3
+    MANUAL = 4
 
 class Navigator:
     """
@@ -112,6 +113,7 @@ class Navigator:
         rospy.Subscriber('/map', OccupancyGrid, self.map_callback)
         rospy.Subscriber('/map_metadata', MapMetaData, self.map_md_callback)
         rospy.Subscriber('/cmd_nav', Pose2D, self.cmd_nav_callback)
+        rospy.Subscriber('/man_control', String, self.man_control_callback)
 
 	# Pizza detector
         rospy.Subscriber('/detector/bird', DetectedObject, self.pizza_detected_callback)
@@ -128,6 +130,12 @@ class Navigator:
         self.pose_controller.k2 = config["k2"]
         self.pose_controller.k3 = config["k3"]
         return config
+
+    def man_control_callback(self, msg):
+        if msg.data == "Manual":
+            self.switch_mode(Mode.MANUAL)
+        elif msg.data == "Auto":
+            self.switch_mode(Mode.IDLE)
 
     def cmd_nav_callback(self, data):
         """
@@ -253,6 +261,9 @@ class Navigator:
         Runs appropriate controller depending on the mode. Assumes all controllers
         are all properly set up / with the correct goals loaded
         """
+        if self.mode == Mode.MANUAL:
+            return
+
         t = self.get_current_plan_time()
 
         if self.mode == Mode.PARK:
