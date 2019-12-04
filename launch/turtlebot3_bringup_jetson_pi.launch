@@ -58,7 +58,6 @@
     <node pkg="asl_turtlebot" type="detector_mobilenet.py" name="turtlebot_detector" respawn="true"/>
     <node pkg="asl_turtlebot" type="goal_commander.py" name="goal_commander" />
     <node pkg="asl_turtlebot" type="navigator.py" name="navigator" />
-    <node pkg="asl_turtlebot" type="supervisor" name="supervisor" />
 
     <!-- x: -180, y: -90 -->
     <node pkg="tf" type="static_transform_publisher" name="camera_true_broadcaster" args="0.03 0 0.067 0.707107 0 0.707107 0 base_footprint raspicam 100" />
