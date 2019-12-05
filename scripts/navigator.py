@@ -71,7 +71,7 @@ class Navigator:
         self.current_plan_start_time = rospy.get_rostime()
         self.current_plan_duration = 0
         self.plan_start = [0.,0.]
-        
+
         # Robot limits
         self.v_max = 0.2    # maximum velocity
         self.om_max = 0.4   # maximum angular velocity
@@ -106,6 +106,7 @@ class Navigator:
         self.nav_smoothed_path_pub = rospy.Publisher('/cmd_smoothed_path', Path, queue_size=10)
         self.nav_smoothed_path_rej_pub = rospy.Publisher('/cmd_smoothed_path_rejected', Path, queue_size=10)
         self.nav_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
+        self.replan_map_publisher = rospy.Publisher('/map', OccupancyGrid, queue_size=10)
 
         self.trans_listener = tf.TransformListener()
 
@@ -117,7 +118,7 @@ class Navigator:
         rospy.Subscriber('/man_control', String, self.man_control_callback)
 
         print "finished init"
-        
+
     def dyn_cfg_callback(self, config, level):
         rospy.loginfo("Reconfigure Request: k1:{k1}, k2:{k2}, k3:{k3}".format(**config))
         self.pose_controller.k1 = config["k1"]
@@ -132,6 +133,8 @@ class Navigator:
             self.switch_mode(Mode.IDLE)
         elif msg.data == "Stop":
             self.switch_mode(Mode.STOP)
+        elif msg.data == "Roadblock":
+            self.handle_roadblock()
 
     def cmd_nav_callback(self, data):
         """
@@ -156,6 +159,7 @@ class Navigator:
         """
         receives new map info and updates the map
         """
+        self.map_msg = msg
         self.map_probs = msg.data
         # if we've received the map metadata and have a way to update it:
         if self.map_width>0 and self.map_height>0 and len(self.map_probs)>0:
@@ -166,6 +170,7 @@ class Navigator:
                                                   self.map_origin[1],
                                                   8,
                                                   self.map_probs)
+            self.occupancy_pristine = self.occupancy.deep_copy()
             if self.x_g is not None:
                 # if we have a goal to plan to, replan
                 rospy.loginfo("replanning because of new map")
@@ -200,7 +205,7 @@ class Navigator:
         (enough to switch to tracking controller)
         """
         return (abs(wrapToPi(self.theta - self.th_init)) < self.theta_start_thresh)
-        
+
     def close_to_plan_start(self):
         return (abs(self.x - self.plan_start[0]) < self.start_pos_thresh and abs(self.y - self.plan_start[1]) < self.start_pos_thresh)
 
@@ -266,6 +271,38 @@ class Navigator:
         t = (rospy.get_rostime()-self.current_plan_start_time).to_sec()
         return max(0.0, t)  # clip negative time to 0
 
+    def handle_roadblock(self):
+        rospy.loginfo('Handling roadblock')
+        print('Handling roadblock')
+
+        # plant an obstacle in front
+        for dx in np.arange(5, 11):
+            for dy in np.arange(-10, 10):
+                cos = np.cos(self.theta)
+                sin = np.sin(self.theta)
+                # rotate from local coordinates w.r.t. local origin
+                R = np.array([[cos, -sin, 0.0],
+                              [sin,  cos, 0.0]
+                              [0.0,  0.0, 1.0])
+                v = np.matmul(R, np.array([dx, dy, 1.0]))
+                # display from local coords to robot position in grid
+                v = v[:2] + np.array([self.x, self.y])
+                w = self.occupancy.width
+                # mark that grid location as having obstacle
+                v = int(v)
+                if v[0] >= 0 and v[0] < self.occupancy.width and \
+                   v[1] >= 0 and v[1] < self.occupancy.height:
+                   self.occupancy.probs[v[1] * w + v[0]] = 1.0
+            # /for dy
+        # for dx
+
+        # visualize
+        map_msg = self.map_msg.deep_copy()
+        map_msg.data = self.occupancy
+        self.replan_map_publisher.publish(map_msg)
+
+        self.replan()
+
     def replan(self):
         """
         loads goal into pose controller
@@ -299,7 +336,7 @@ class Navigator:
         rospy.loginfo("Planning Succeeded")
 
         planned_path = problem.path
-        
+
 
         # Check whether path is too short
         if len(planned_path) < 4:
@@ -387,6 +424,7 @@ class Navigator:
                     self.y_g = None
                     self.theta_g = None
                     self.switch_mode(Mode.IDLE)
+                    self.occupancy = self.occupancy_pristine.deep_copy()
 
             self.publish_control()
             rate.sleep()

@@ -10,6 +10,8 @@ from geometry_msgs.msg import Twist, PoseArray, Pose2D, PoseStamped
 from std_msgs.msg import Float32MultiArray, String
 import tf
 
+kRoadBlockLandmark = 'cow'
+
 class Mode(Enum):
     """State machine modes. Feel free to change."""
     IDLE = 1
@@ -78,7 +80,7 @@ class Supervisor:
         # Current mode
         self.mode = Mode.MANUAL
         self.prev_mode = None  # For printing purposes
-        
+
         # Landmarks
         self.landmarks = {}
 
@@ -98,6 +100,9 @@ class Supervisor:
 
         # Control
         self.man_control_publisher = rospy.Publisher('/man_control', String, queue_size=10)
+
+        # Roadblock
+        self.roadblock_detected = False
 
         ########## SUBSCRIBERS ##########
 
@@ -121,7 +126,7 @@ class Supervisor:
 
         # Food detectors
         rospy.Subscriber('/detector/objects', DetectedObjectList, self.object_detected_callback)
-        
+
         # Order requester
         rospy.Subscriber('/delivery_request', String, self.order_callback)
 
@@ -189,7 +194,11 @@ class Supervisor:
                 pose.y = self.y
                 pose.theta = self.theta
 
-                if not obj in self.landmarks.keys():
+                # TODO: special-case road-block landmark
+                if obj.name == kRoadBlockLandmark:
+                    rospy.loginfo('Roadblock detected')
+                    self.roadblock_detected = True
+                elif not obj in self.landmarks.keys():
                     self.landmarks[obj] = pose
                     self.marker_publisher(obj, pose)
                     print "Object Detected", obj, self.landmarks[obj]
@@ -306,6 +315,9 @@ class Supervisor:
         return self.mode == Mode.CROSS and \
                rospy.get_rostime() - self.cross_start > rospy.Duration.from_sec(self.params.crossing_time)
 
+    def handle_roadblock(self):
+        self.man_control_publisher.publish('Roadblock')
+
     ########## Code ends here ##########
 
 
@@ -340,7 +352,9 @@ class Supervisor:
 
         elif self.mode == Mode.POSE:
             # Moving towards a desired pose
-            if self.close_to(self.x_g, self.y_g, self.theta_g):
+            if self.roadblock_detected:
+                self.handle_roadblock()
+            elif self.close_to(self.x_g, self.y_g, self.theta_g):
                 self.mode = Mode.IDLE
             else:
                 self.go_to_pose()
@@ -358,7 +372,9 @@ class Supervisor:
                 self.nav_to_pose()
 
         elif self.mode == Mode.NAV:
-            if self.close_to(self.x_g, self.y_g, self.theta_g):
+            if self.roadblock_detected:
+                self.handle_roadblock()
+            elif self.close_to(self.x_g, self.y_g, self.theta_g):
                 self.mode = Mode.IDLE
             else:
                 self.nav_to_pose()
