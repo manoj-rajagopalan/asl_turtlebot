@@ -101,9 +101,6 @@ class Supervisor:
         # Control
         self.man_control_publisher = rospy.Publisher('/man_control', String, queue_size=10)
 
-        # Roadblock
-        self.roadblock_detected = False
-
         ########## SUBSCRIBERS ##########
 
         # Stop sign detector
@@ -197,7 +194,7 @@ class Supervisor:
                 # TODO: special-case road-block landmark
                 if obj.name == kRoadBlockLandmark:
                     rospy.loginfo('Roadblock detected')
-                    self.roadblock_detected = True
+                    self.handle_roadblock()
                 elif not obj in self.landmarks.keys():
                     self.landmarks[obj] = pose
                     self.marker_publisher(obj, pose)
@@ -352,9 +349,7 @@ class Supervisor:
 
         elif self.mode == Mode.POSE:
             # Moving towards a desired pose
-            if self.roadblock_detected:
-                self.handle_roadblock()
-            elif self.close_to(self.x_g, self.y_g, self.theta_g):
+            if self.close_to(self.x_g, self.y_g, self.theta_g):
                 self.mode = Mode.IDLE
             else:
                 self.go_to_pose()
@@ -372,9 +367,7 @@ class Supervisor:
                 self.nav_to_pose()
 
         elif self.mode == Mode.NAV:
-            if self.roadblock_detected:
-                self.handle_roadblock()
-            elif self.close_to(self.x_g, self.y_g, self.theta_g):
+            if self.close_to(self.x_g, self.y_g, self.theta_g):
                 self.mode = Mode.IDLE
             else:
                 self.nav_to_pose()
