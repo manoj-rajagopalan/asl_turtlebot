@@ -27,6 +27,7 @@ class Mode(Enum):
     TRACK = 2
     PARK = 3
     MANUAL = 4
+    STOP = 5
 
 class Navigator:
     """
@@ -136,6 +137,8 @@ class Navigator:
             self.switch_mode(Mode.MANUAL)
         elif msg.data == "Auto":
             self.switch_mode(Mode.IDLE)
+        elif msg.data == "Stop":
+            self.switch_mode(Mode.STOP)
 
     def cmd_nav_callback(self, data):
         """
@@ -261,7 +264,7 @@ class Navigator:
         Runs appropriate controller depending on the mode. Assumes all controllers
         are all properly set up / with the correct goals loaded
         """
-        if self.mode == Mode.MANUAL:
+        if self.mode == Mode.MANUAL or self.mode == Mode.STOP:
             return
 
         t = self.get_current_plan_time()

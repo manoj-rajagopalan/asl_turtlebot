@@ -96,6 +96,9 @@ class Supervisor:
         # Landmark markers
         self.markers_publisher = rospy.Publisher('/markers', Marker, queue_size=10)
 
+        # Control
+        self.man_control_publisher = rospy.Publisher('/man_control', String, queue_size=10)
+
         ########## SUBSCRIBERS ##########
 
         # Stop sign detector
@@ -279,6 +282,8 @@ class Supervisor:
 
     def init_stop_sign(self):
         """ initiates a stop sign maneuver """
+
+        self.man_control.publish("Stop")
 
         self.stop_sign_start = rospy.get_rostime()
         self.mode = Mode.STOP
