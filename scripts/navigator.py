@@ -298,7 +298,7 @@ class Navigator:
 
         # visualize
         map_msg = self.map_msg.deep_copy()
-        map_msg.data = self.occupancy
+        map_msg.data = self.occupancy.probs
         self.replan_map_publisher.publish(map_msg)
 
         self.replan()
