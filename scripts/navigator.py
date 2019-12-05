@@ -58,7 +58,7 @@ class Navigator:
         self.map_origin = [0,0]
         self.map_probs = []
         self.occupancy = None
-        self.occupancy_updated = False
+        self.roadblock = None
 
         # plan parameters
         self.plan_resolution =  0.1
@@ -107,7 +107,7 @@ class Navigator:
         self.nav_smoothed_path_pub = rospy.Publisher('/cmd_smoothed_path', Path, queue_size=10)
         self.nav_smoothed_path_rej_pub = rospy.Publisher('/cmd_smoothed_path_rejected', Path, queue_size=10)
         self.nav_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-        self.replan_map_publisher = rospy.Publisher('/map', OccupancyGrid, queue_size=10)
+        # self.replan_map_publisher = rospy.Publisher('/map', OccupancyGrid, queue_size=10)
 
         self.trans_listener = tf.TransformListener()
 
@@ -134,8 +134,11 @@ class Navigator:
             self.switch_mode(Mode.IDLE)
         elif msg.data == "Stop":
             self.switch_mode(Mode.STOP)
-        elif msg.data == "Roadblock":
+        elif msg.data == "Roadblock" and self.roadblock == None:
+            self.switch_mode(Mode.IDLE)
+            self.roadblock = [self.x, self.y, self.theta]
             self.handle_roadblock()
+            self.replan()
 
     def cmd_nav_callback(self, data):
         """
@@ -171,7 +174,9 @@ class Navigator:
                                                   self.map_origin[1],
                                                   8,
                                                   self.map_probs)
-            self.occupancy_pristine = copy.deepcopy(self.occupancy)
+            if self.roadblock is not None:
+                self.handle_roadblock()
+
             if self.x_g is not None:
                 # if we have a goal to plan to, replan
                 rospy.loginfo("replanning because of new map")
@@ -274,35 +279,33 @@ class Navigator:
 
     def handle_roadblock(self):
         rospy.loginfo('Handling roadblock')
-        print('Handling roadblock')
 
         # plant an obstacle in front
         for dx in np.arange(5, 11):
             for dy in np.arange(-10, 10):
-                cos = np.cos(self.theta)
-                sin = np.sin(self.theta)
+                cos = np.cos(self.roadblock[2])
+                sin = np.sin(self.roadblock[2])
                 # rotate from local coordinates w.r.t. local origin
                 R = np.array([[cos, -sin, 0.0],
                               [sin,  cos, 0.0],
                               [0.0,  0.0, 1.0]])
                 v = np.matmul(R, np.array([dx, dy, 1.0]))
                 # display from local coords to robot position in grid
-                v = v[:2] + np.array([self.x, self.y])
+                v = v[:2] + np.array([self.roadblock[0], self.roadblock[1]])
                 w = self.occupancy.width
                 # mark that grid location as having obstacle
-                v = int(v)
-                if v[0] >= 0 and v[0] < self.occupancy.width and \
-                   v[1] >= 0 and v[1] < self.occupancy.height:
-                   self.occupancy.probs[v[1] * w + v[0]] = 1.0
-            # /for dy
+                v = np.around(v)
+                if v[0] >= 0 and v[0] < self.occupancy.width and v[1] >= 0 and v[1] < self.occupancy.height:
+                    new_probs = list(self.occupancy.probs)
+                    new_probs[int(v[1] * w + v[0])] = 1.0
+                    self.occupancy.probs = tuple(new_probs)
+            # for dy
         # for dx
 
         # visualize
-        map_msg = copy.deepcopy(self.map_msg)
-        map_msg.data = self.occupancy.probs
-        self.replan_map_publisher.publish(map_msg)
-
-        self.replan()
+        # map_msg = copy.deepcopy(self.map_msg)
+        # map_msg.data = self.occupancy.probs
+        # self.replan_map_publisher.publish(map_msg)
 
     def replan(self):
         """
@@ -425,7 +428,7 @@ class Navigator:
                     self.y_g = None
                     self.theta_g = None
                     self.switch_mode(Mode.IDLE)
-                    self.occupancy = copy.deepcopy(self.occupancy_pristine)
+                    self.roadblock = None
 
             self.publish_control()
             rate.sleep()

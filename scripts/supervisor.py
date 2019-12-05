@@ -192,7 +192,7 @@ class Supervisor:
 
     def object_detected_callback(self, msg):
         for i, obj in enumerate(msg.objects):
-            if obj == "stop_sign":
+            if not obj in self.colors.keys():
                 continue
 
             dist = msg.ob_msgs[i].distance
