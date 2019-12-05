@@ -10,7 +10,7 @@ from geometry_msgs.msg import Twist, PoseArray, Pose2D, PoseStamped
 from std_msgs.msg import Float32MultiArray, String
 import tf
 
-kRoadBlockLandmark = 'cow'
+kRoadBlockLandmark = 'clock'
 
 class Mode(Enum):
     """State machine modes. Feel free to change."""
