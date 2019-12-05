@@ -81,6 +81,16 @@ class Supervisor:
         
         # Landmarks
         self.landmarks = {}
+        self.colors = {
+            "dog": [1.0, 0.0, 0.0],
+            "cow": [1.0, 0.0, 0.0],
+            "bird": [1.0, 0.0, 0.0],
+            "horse": [1.0, 0.0, 0.0],
+            "chair": [0.0, 0.0, 1.0],
+            "scissors": [0.0, 0.0, 1.0],
+            "clock": [1.0, 1.0, 0.0],
+            "donut": [1.0, 1.0, 0.0],
+        }
 
         ########## PUBLISHERS ##########
 
@@ -231,9 +241,9 @@ class Supervisor:
         marker.scale.z = 0.5
 
         marker.color.a = 1.0 # Don't forget to set the alpha!
-        marker.color.r = 1.0
-        marker.color.g = 0.0
-        marker.color.b = 0.0
+        marker.color.r = self.colors[name][0]
+        marker.color.g = self.colors[name][1]
+        marker.color.b = self.colors[name][2]
 
         self.markers_publisher.publish(marker)
         print('Published marker!')
