@@ -205,7 +205,7 @@ class Supervisor:
                 pose.theta = self.theta
 
                 # special-case road-block landmark
-                if obj.name == kRoadBlockLandmark:
+                if obj == kRoadBlockLandmark:
                     rospy.loginfo('Roadblock detected')
                     self.man_control_publisher.publish('Roadblock')
                 elif not obj in self.landmarks.keys():

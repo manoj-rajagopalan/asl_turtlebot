@@ -283,8 +283,8 @@ class Navigator:
                 sin = np.sin(self.theta)
                 # rotate from local coordinates w.r.t. local origin
                 R = np.array([[cos, -sin, 0.0],
-                              [sin,  cos, 0.0]
-                              [0.0,  0.0, 1.0])
+                              [sin,  cos, 0.0],
+                              [0.0,  0.0, 1.0]])
                 v = np.matmul(R, np.array([dx, dy, 1.0]))
                 # display from local coords to robot position in grid
                 v = v[:2] + np.array([self.x, self.y])
