@@ -194,7 +194,7 @@ class Supervisor:
                 # special-case road-block landmark
                 if obj.name == kRoadBlockLandmark:
                     rospy.loginfo('Roadblock detected')
-                    self.handle_roadblock()
+                    self.man_control_publisher.publish('Roadblock')
                 elif not obj in self.landmarks.keys():
                     self.landmarks[obj] = pose
                     self.marker_publisher(obj, pose)
@@ -311,9 +311,6 @@ class Supervisor:
 
         return self.mode == Mode.CROSS and \
                rospy.get_rostime() - self.cross_start > rospy.Duration.from_sec(self.params.crossing_time)
-
-    def handle_roadblock(self):
-        self.man_control_publisher.publish('Roadblock')
 
     ########## Code ends here ##########
 
