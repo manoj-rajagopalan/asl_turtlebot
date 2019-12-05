@@ -180,10 +180,13 @@ class Supervisor:
 
     def object_detected_callback(self, msg):
         for i, obj in enumerate(msg.objects):
+            if obj == "stop_sign":
+                continue
+
             dist = msg.ob_msgs[i].distance
             conf = msg.ob_msgs[i].confidence
 
-            if dist > 0 and conf > self.params.min_confidence:
+            if dist > 0 and dist < 2.75 and conf > self.params.min_confidence:
                 pose = Pose2D()
                 pose.x = self.x
                 pose.y = self.y
