@@ -16,6 +16,7 @@ import scipy.interpolate
 import matplotlib.pyplot as plt
 from controllers import PoseController, TrajectoryTracker, HeadingController
 from enum import Enum
+import copy
 
 from dynamic_reconfigure.server import Server
 from asl_turtlebot.cfg import NavigatorConfig
@@ -170,7 +171,7 @@ class Navigator:
                                                   self.map_origin[1],
                                                   8,
                                                   self.map_probs)
-            self.occupancy_pristine = self.occupancy.deep_copy()
+            self.occupancy_pristine = copy.deepcopy(self.occupancy)
             if self.x_g is not None:
                 # if we have a goal to plan to, replan
                 rospy.loginfo("replanning because of new map")
@@ -297,7 +298,7 @@ class Navigator:
         # for dx
 
         # visualize
-        map_msg = self.map_msg.deep_copy()
+        map_msg = copy.deepcopy(self.map_msg)
         map_msg.data = self.occupancy.probs
         self.replan_map_publisher.publish(map_msg)
 
@@ -424,7 +425,7 @@ class Navigator:
                     self.y_g = None
                     self.theta_g = None
                     self.switch_mode(Mode.IDLE)
-                    self.occupancy = self.occupancy_pristine.deep_copy()
+                    self.occupancy = copy.deepcopy(self.occupancy_pristine)
 
             self.publish_control()
             rate.sleep()
