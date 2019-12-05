@@ -76,7 +76,7 @@ class Supervisor:
         self.theta_g = 0
 
         # Current mode
-        self.mode = Mode.IDLE
+        self.mode = Mode.MANUAL
         self.prev_mode = None  # For printing purposes
         
         # Landmarks
@@ -183,7 +183,7 @@ class Supervisor:
             dist = msg.ob_msgs[i].distance
             conf = msg.ob_msgs[i].confidence
 
-            if dist > 0 and dist < self.params.stop_min_dist and conf > self.params.min_confidence:
+            if dist > 0 and conf > self.params.min_confidence:
                 pose = Pose2D()
                 pose.x = self.x
                 pose.y = self.y
@@ -283,7 +283,7 @@ class Supervisor:
     def init_stop_sign(self):
         """ initiates a stop sign maneuver """
 
-        self.man_control.publish("Stop")
+        self.man_control_publisher.publish("Stop")
 
         self.stop_sign_start = rospy.get_rostime()
         self.mode = Mode.STOP
@@ -364,7 +364,7 @@ class Supervisor:
                 self.nav_to_pose()
 
         elif self.mode == Mode.MANUAL:
-            pass
+            self.man_control_publisher.publish("Manual")
 
         else:
             raise Exception("This mode is not supported: {}".format(str(self.mode)))

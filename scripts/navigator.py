@@ -36,7 +36,7 @@ class Navigator:
     """
     def __init__(self):
         rospy.init_node('turtlebot_navigator', anonymous=True)
-        self.mode = Mode.IDLE
+        self.mode = Mode.MANUAL
 
         # current state
         self.x = 0.0
