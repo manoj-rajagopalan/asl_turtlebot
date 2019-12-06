@@ -10,6 +10,8 @@ from geometry_msgs.msg import Twist, PoseArray, Pose2D, PoseStamped
 from std_msgs.msg import Float32MultiArray, String
 import tf
 
+kRoadBlockLandmark = 'clock'
+
 class Mode(Enum):
     """State machine modes. Feel free to change."""
     IDLE = 1
@@ -78,7 +80,7 @@ class Supervisor:
         # Current mode
         self.mode = Mode.MANUAL
         self.prev_mode = None  # For printing purposes
-        
+
         # Landmarks
         self.landmarks = {}
         self.colors = {
@@ -131,7 +133,7 @@ class Supervisor:
 
         # Food detectors
         rospy.Subscriber('/detector/objects', DetectedObjectList, self.object_detected_callback)
-        
+
         # Order requester
         rospy.Subscriber('/delivery_request', String, self.order_callback)
 
@@ -190,7 +192,7 @@ class Supervisor:
 
     def object_detected_callback(self, msg):
         for i, obj in enumerate(msg.objects):
-            if obj == "stop_sign":
+            if not obj in self.colors.keys():
                 continue
 
             dist = msg.ob_msgs[i].distance
@@ -202,7 +204,11 @@ class Supervisor:
                 pose.y = self.y
                 pose.theta = self.theta
 
-                if not obj in self.landmarks.keys():
+                # special-case road-block landmark
+                if obj == kRoadBlockLandmark:
+                    rospy.loginfo('Roadblock detected')
+                    self.man_control_publisher.publish('Roadblock')
+                elif not obj in self.landmarks.keys():
                     self.landmarks[obj] = pose
                     self.marker_publisher(obj, pose)
                     print "Object Detected", obj, self.landmarks[obj]
