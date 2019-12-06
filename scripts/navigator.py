@@ -279,6 +279,7 @@ class Navigator:
 
     def handle_roadblock(self):
         rospy.loginfo('Handling roadblock')
+		new_probs = list(self.occupancy.probs)
 
         # plant an obstacle in front
         for dx in np.arange(5, 45):
@@ -296,11 +297,9 @@ class Navigator:
                 # mark that grid location as having obstacle
                 v = np.around(v)
                 if v[0] >= 0 and v[0] < self.occupancy.width and v[1] >= 0 and v[1] < self.occupancy.height:
-                    new_probs = list(self.occupancy.probs)
                     new_probs[int(v[1] * w + v[0])] = 1.0
-                    self.occupancy.probs = tuple(new_probs)
-            # for dy
-        # for dx
+
+		self.occupancy.probs = tuple(new_probs)
 
         # visualize
 		map_msg = copy.deepcopy(self.map_msg)

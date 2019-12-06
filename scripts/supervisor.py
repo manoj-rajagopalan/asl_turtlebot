@@ -10,7 +10,7 @@ from geometry_msgs.msg import Twist, PoseArray, Pose2D, PoseStamped
 from std_msgs.msg import Float32MultiArray, String
 import tf
 
-kRoadBlockLandmark = 'clock'
+kRoadBlockLandmarks = ['donut']
 
 class Mode(Enum):
     """State machine modes. Feel free to change."""
@@ -88,10 +88,11 @@ class Supervisor:
             "cow": [1.0, 0.0, 0.0],
             "bird": [1.0, 0.0, 0.0],
             "horse": [1.0, 0.0, 0.0],
-            "chair": [0.0, 0.0, 1.0],
-            "scissors": [0.0, 0.0, 1.0],
-            "clock": [1.0, 1.0, 0.0],
+            
             "donut": [1.0, 1.0, 0.0],
+            
+            "scissors": [0.0, 0.0, 1.0],
+            "clock": [0.0, 0.0, 1.0],
         }
         
         self.prev_order = None
@@ -208,7 +209,7 @@ class Supervisor:
                 pose.theta = self.theta
 
                 # special-case road-block landmark
-                if obj == kRoadBlockLandmark:
+                if obj in kRoadBlockLandmarks:
                     rospy.loginfo('Roadblock detected')
                     self.man_control_publisher.publish('Roadblock')
                 elif not obj in self.landmarks.keys():
