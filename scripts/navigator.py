@@ -107,7 +107,7 @@ class Navigator:
         self.nav_smoothed_path_pub = rospy.Publisher('/cmd_smoothed_path', Path, queue_size=10)
         self.nav_smoothed_path_rej_pub = rospy.Publisher('/cmd_smoothed_path_rejected', Path, queue_size=10)
         self.nav_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-        # self.replan_map_publisher = rospy.Publisher('/map', OccupancyGrid, queue_size=10)
+        self.roadblock_map_publisher = rospy.Publisher('/roadblock_map', OccupancyGrid, queue_size=10)
 
         self.trans_listener = tf.TransformListener()
 
@@ -281,8 +281,8 @@ class Navigator:
         rospy.loginfo('Handling roadblock')
 
         # plant an obstacle in front
-        for dx in np.arange(5, 11):
-            for dy in np.arange(-10, 10):
+        for dx in np.arange(5, 45):
+            for dy in np.arange(-20, 20):
                 cos = np.cos(self.roadblock[2])
                 sin = np.sin(self.roadblock[2])
                 # rotate from local coordinates w.r.t. local origin
@@ -303,9 +303,9 @@ class Navigator:
         # for dx
 
         # visualize
-        # map_msg = copy.deepcopy(self.map_msg)
-        # map_msg.data = self.occupancy.probs
-        # self.replan_map_publisher.publish(map_msg)
+		map_msg = copy.deepcopy(self.map_msg)
+		map_msg.data = self.occupancy.probs
+		self.roadblock_map_publisher.publish(map_msg)
 
     def replan(self):
         """

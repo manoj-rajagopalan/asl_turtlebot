@@ -93,6 +93,8 @@ class Supervisor:
             "clock": [1.0, 1.0, 0.0],
             "donut": [1.0, 1.0, 0.0],
         }
+        
+        self.prev_order = None
 
         ########## PUBLISHERS ##########
 
@@ -136,6 +138,7 @@ class Supervisor:
 
         # Order requester
         rospy.Subscriber('/delivery_request', String, self.order_callback)
+        rospy.Subscriber('/flush_request', String, self.order_flush)
 
         # Control
         rospy.Subscriber('/man_control', String, self.man_control_callback)
@@ -214,6 +217,11 @@ class Supervisor:
                     print "Object Detected", obj, self.landmarks[obj]
 
     def order_callback(self, msg):
+        if msg.data == self.prev_order:
+            return
+        else:
+            self.prev_order = msg.data
+
         for order in msg.data.split(","):
             print "Order Received", order
             if order in self.landmarks.keys():
@@ -223,6 +231,10 @@ class Supervisor:
                 while not self.close_to(position.x, position.y, position.theta):
                     pass
             print "Order Pickup", order
+            
+	def order_flush(self, msg):
+	    if msg.data == "Done":
+	        self.prev_order = None
 
     def marker_publisher(self, name, pose):
         marker = Marker()

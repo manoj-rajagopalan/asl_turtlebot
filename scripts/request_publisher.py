@@ -13,6 +13,7 @@ class DeliveryRequestPublisher:
         self.delivery_request = None
         #create publisher
         self.request_publisher = rospy.Publisher('/delivery_request', String, queue_size=10)
+        self.request_flusher = rospy.Publisher('/flush_request', String, queue_size=10)
 
     def publish_request(self):
         #publish the request t times, once every s seconds
@@ -21,6 +22,7 @@ class DeliveryRequestPublisher:
         for i in range(t):
             self.request_publisher.publish(self.delivery_request)
             rospy.sleep(s)
+		self.request_flusher.publish("Done")
     
     def loop(self):
         """The main loop of the script. The script will ask for food items to add to the 
