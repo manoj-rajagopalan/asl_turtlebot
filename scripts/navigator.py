@@ -29,6 +29,7 @@ class Mode(Enum):
     PARK = 3
     MANUAL = 4
     STOP = 5
+    ROADBLOCK = 6
 
 class Navigator:
     """
@@ -58,7 +59,6 @@ class Navigator:
         self.map_origin = [0,0]
         self.map_probs = []
         self.occupancy = None
-        self.roadblock = None
 
         # plan parameters
         self.plan_resolution =  0.1
@@ -107,7 +107,7 @@ class Navigator:
         self.nav_smoothed_path_pub = rospy.Publisher('/cmd_smoothed_path', Path, queue_size=10)
         self.nav_smoothed_path_rej_pub = rospy.Publisher('/cmd_smoothed_path_rejected', Path, queue_size=10)
         self.nav_vel_pub = rospy.Publisher('/cmd_vel', Twist, queue_size=10)
-        # self.replan_map_publisher = rospy.Publisher('/map', OccupancyGrid, queue_size=10)
+        self.navigator_status_publisher = rospy.Publisher('/navigator_status', String, queue_size=10)
 
         self.trans_listener = tf.TransformListener()
 
@@ -118,13 +118,23 @@ class Navigator:
         rospy.Subscriber('/cmd_nav', Pose2D, self.cmd_nav_callback)
         rospy.Subscriber('/man_control', String, self.man_control_callback)
 
+        self.roadblock_handled = False
+        self.roadblock_dist
+
         print "finished init"
 
     def dyn_cfg_callback(self, config, level):
-        rospy.loginfo("Reconfigure Request: k1:{k1}, k2:{k2}, k3:{k3}".format(**config))
+        rospy.loginfo("Reconfigure Request: k1:{k1}, k2:{k2}, k3:{k3}".format(config[0], config[1], config[2]))
         self.pose_controller.k1 = config["k1"]
         self.pose_controller.k2 = config["k2"]
         self.pose_controller.k3 = config["k3"]
+        self.roadblock_dist = config["roadblock_dist"]
+        self.roadblock_thickness = config["roadblock_thick"]
+        self.roadblock_width = config["roadblock_width"]
+        rospy.loginfo("Reconfigured roadblock_dist = %d", self.roadblock_dist)
+        rospy.loginfo("Reconfigured roadblock_thickness = %d", self.roadblock_thick)
+        rospy.loginfo("Reconfigured roadblock_width = %d", self.roadblock_width)
+
         return config
 
     def man_control_callback(self, msg):
@@ -134,11 +144,12 @@ class Navigator:
             self.switch_mode(Mode.IDLE)
         elif msg.data == "Stop":
             self.switch_mode(Mode.STOP)
-        elif msg.data == "Roadblock" and self.roadblock == None:
-            self.switch_mode(Mode.IDLE)
-            self.roadblock = [self.x, self.y, self.theta]
-            self.handle_roadblock()
-            self.replan()
+        elif msg.data == "Roadblock":
+            # Ignore this detection if replanning has already been done.
+            # In the few seconds it takes to execute the new plan, the roadblock
+            # will still be in view.
+            if not roadblock_handled:
+                self.switch_mode(Mode.ROADBLOCK)
 
     def cmd_nav_callback(self, data):
         """
@@ -158,6 +169,7 @@ class Navigator:
         self.map_height = msg.height
         self.map_resolution = msg.resolution
         self.map_origin = (msg.origin.position.x,msg.origin.position.y)
+        rospy.loginfo('Map dims = %d x %d', self.map_width, self.map_height)
 
     def map_callback(self,msg):
         """
@@ -174,9 +186,6 @@ class Navigator:
                                                   self.map_origin[1],
                                                   8,
                                                   self.map_probs)
-            if self.roadblock is not None:
-                self.handle_roadblock()
-
             if self.x_g is not None:
                 # if we have a goal to plan to, replan
                 rospy.loginfo("replanning because of new map")
@@ -277,35 +286,38 @@ class Navigator:
         t = (rospy.get_rostime()-self.current_plan_start_time).to_sec()
         return max(0.0, t)  # clip negative time to 0
 
-    def handle_roadblock(self):
+    def handle_roadblock(self, x, y, theta):
         rospy.loginfo('Handling roadblock')
 
         # plant an obstacle in front
-        for dx in np.arange(5, 11):
-            for dy in np.arange(-10, 10):
-                cos = np.cos(self.roadblock[2])
-                sin = np.sin(self.roadblock[2])
+        # modify self.occupancy according to roadblock for use in self.replan()
+        occupancy_pristine = copy.deepcopy(self.occupancy)
+        for dx in np.arange(self.roadblock_dist, self.roadblock_dist + roadblock_thick):
+            for pre_dy in np.arange(0, self.roadblock_width):
+                dy = pre_dy - (self.roadblock_width // 2) # center on x-axis
+                cos = np.cos(theta)
+                sin = np.sin(theta)
                 # rotate from local coordinates w.r.t. local origin
                 R = np.array([[cos, -sin, 0.0],
                               [sin,  cos, 0.0],
                               [0.0,  0.0, 1.0]])
                 v = np.matmul(R, np.array([dx, dy, 1.0]))
                 # display from local coords to robot position in grid
-                v = v[:2] + np.array([self.roadblock[0], self.roadblock[1]])
-                w = self.occupancy.width
+                v = v[:2] + np.array([x, y])
+                w = int(self.occupancy.width)
                 # mark that grid location as having obstacle
-                v = np.around(v)
+                v = np.around(v).astype(int)
                 if v[0] >= 0 and v[0] < self.occupancy.width and v[1] >= 0 and v[1] < self.occupancy.height:
-                    new_probs = list(self.occupancy.probs)
-                    new_probs[int(v[1] * w + v[0])] = 1.0
-                    self.occupancy.probs = tuple(new_probs)
+                    self.occupancy.probs[v[1] * w + v[0]] = 1.0
             # for dy
         # for dx
 
-        # visualize
-        # map_msg = copy.deepcopy(self.map_msg)
-        # map_msg.data = self.occupancy.probs
-        # self.replan_map_publisher.publish(map_msg)
+        self.replan() # uses self.occupancy
+        assert self.mode == Mode.TRACK
+
+        self.occupancy = occupancy_pristine # restore map
+        self.roadblock_handled = True
+
 
     def replan(self):
         """
@@ -428,10 +440,16 @@ class Navigator:
                     self.y_g = None
                     self.theta_g = None
                     self.switch_mode(Mode.IDLE)
-                    self.roadblock = None
+                    self.roadblock_handled = False
+                    self.navigator_status_publisher.publish('DONE') # tell supervisor
+            elif self.mode == Mode.ROADBLOCK:
+                # should run only once - should change into TRACK mode immediately
+                self.handle_roadblock(self.x, self.y. self.theta)
+                assert self.mode == Mode.TRACK
 
             self.publish_control()
             rate.sleep()
+
 
 if __name__ == '__main__':
     nav = Navigator()

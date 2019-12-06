@@ -92,6 +92,7 @@ class Supervisor:
             "scissors": [0.0, 0.0, 1.0],
             "clock": [1.0, 1.0, 0.0],
             "donut": [1.0, 1.0, 0.0],
+            "roadblock": [0.0, 0.0, 0.0]
         }
 
         ########## PUBLISHERS ##########
@@ -140,7 +141,17 @@ class Supervisor:
         # Control
         rospy.Subscriber('/man_control', String, self.man_control_callback)
 
+        # From navigator
+        rospy.Subscriber('/navigator_status', String, self.navigator_status_callback)
+
     ########## SUBSCRIBER CALLBACKS ##########
+
+    def navigator_status_callback(self, msg):
+        rospy.loginfo('Navigator says mission is complete')
+        delete_roadblock_marker = Marker()
+        delete_roadblock_marker.id = roadblock_marker_id
+        delete_roadblock_marker.action = 2
+        self.marker_publisher.Publish(delete_roadblock_marker)
 
     def gazebo_callback(self, msg):
         if "turtlebot3_burger" not in msg.name:
@@ -192,7 +203,7 @@ class Supervisor:
 
     def object_detected_callback(self, msg):
         for i, obj in enumerate(msg.objects):
-            if not obj in self.colors.keys():
+            if obj == "stop_sign":
                 continue
 
             dist = msg.ob_msgs[i].distance
@@ -207,6 +218,7 @@ class Supervisor:
                 # special-case road-block landmark
                 if obj == kRoadBlockLandmark:
                     rospy.loginfo('Roadblock detected')
+                    self.marker_publisher('roadblock', pose)
                     self.man_control_publisher.publish('Roadblock')
                 elif not obj in self.landmarks.keys():
                     self.landmarks[obj] = pose
@@ -224,7 +236,7 @@ class Supervisor:
                     pass
             print "Order Pickup", order
 
-    def marker_publisher(self, name, pose):
+    def marker_publisher(self, name, pose, delete = False):
         marker = Marker()
 
         marker.header.frame_id = "map"
@@ -232,6 +244,7 @@ class Supervisor:
 
         marker.id = len(self.landmarks.keys())
         marker.type = 2 # sphere
+        marker.action = 0 # add
 
         marker.pose.position.x = pose.x
         marker.pose.position.y = pose.y
@@ -250,6 +263,9 @@ class Supervisor:
         marker.color.r = self.colors[name][0]
         marker.color.g = self.colors[name][1]
         marker.color.b = self.colors[name][2]
+
+        if name == 'Roadblock': # save for later delete
+            self.roadblock_marker_id = marker.id
 
         self.markers_publisher.publish(marker)
         print('Published marker!')
