@@ -78,7 +78,7 @@ class Supervisor:
         # Current mode
         self.mode = Mode.MANUAL
         self.prev_mode = None  # For printing purposes
-        
+
         # Landmarks
         self.landmarks = {}
         self.colors = {
@@ -131,12 +131,14 @@ class Supervisor:
 
         # Food detectors
         rospy.Subscriber('/detector/objects', DetectedObjectList, self.object_detected_callback)
-        
+
         # Order requester
         rospy.Subscriber('/delivery_request', String, self.order_callback)
 
         # Control
         rospy.Subscriber('/man_control', String, self.man_control_callback)
+
+        self.marker_list = []
 
     ########## SUBSCRIBER CALLBACKS ##########
 
@@ -204,7 +206,7 @@ class Supervisor:
 
                 if not obj in self.landmarks.keys():
                     self.landmarks[obj] = pose
-                    self.marker_publisher(obj, pose)
+                    self.add_marker(obj, pose)
                     print "Object Detected", obj, self.landmarks[obj]
 
     def order_callback(self, msg):
@@ -218,7 +220,7 @@ class Supervisor:
                     pass
             print "Order Pickup", order
 
-    def marker_publisher(self, name, pose):
+    def add_marker(self, name, pose):
         marker = Marker()
 
         marker.header.frame_id = "map"
@@ -245,8 +247,8 @@ class Supervisor:
         marker.color.g = self.colors[name][1]
         marker.color.b = self.colors[name][2]
 
-        self.markers_publisher.publish(marker)
-        print('Published marker!')
+        self.marker_list.append(marker) # published in self.loop()
+        print('Added marker!')
 
     def man_control_callback(self, msg):
         if msg.data == "Manual":
@@ -324,10 +326,16 @@ class Supervisor:
 
     ########## STATE MACHINE LOOP ##########
 
+    def publish_markers(self):
+        for m in self.marker_list:
+            self.markers_publisher.publish(m)
+
     def loop(self):
         """ the main loop of the robot. At each iteration, depending on its
         mode (i.e. the finite state machine's state), if takes appropriate
         actions. This function shouldn't return anything """
+
+        self.publish_markers()
 
         if not self.params.use_gazebo:
             try:
